@@ -1,11 +1,26 @@
 use starknet::ContractAddress;
 
-use snforge_std::{declare, ContractClassTrait, DeclareResultTrait};
+use snforge_std::{declare, ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address};
 
-use bankat_token::IHelloStarknetSafeDispatcher;
-use bankat_token::IHelloStarknetSafeDispatcherTrait;
-use bankat_token::IHelloStarknetDispatcher;
-use bankat_token::IHelloStarknetDispatcherTrait;
+#[starknet::interface]
+pub trait IERC20Combined<TContractState> {
+    // IERC20 methods
+    fn total_supply(self: @TContractState) -> u256;
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
+    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transfer_from(
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+    ) -> bool;
+    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+
+    // IERC20Metadata methods
+    fn name(self: @TContractState) -> ByteArray;
+    fn symbol(self: @TContractState) -> ByteArray;
+    fn decimals(self: @TContractState) -> u8;
+
+    fn mint(ref self: TContractState, recipient: ContractAddress, amount: u256);
+}
 
 fn deploy_contract(name: ByteArray) -> ContractAddress {
     let contract = declare(name).unwrap().contract_class();
@@ -14,34 +29,12 @@ fn deploy_contract(name: ByteArray) -> ContractAddress {
 }
 
 #[test]
-fn test_increase_balance() {
-    let contract_address = deploy_contract("HelloStarknet");
+fn test_constructor() {
+    let contract_address = deploy_contract("BankatToken");
 
-    let dispatcher = IHelloStarknetDispatcher { contract_address };
+    let token = IERC20CombinedDispatcher { contract_address };
 
-    let balance_before = dispatcher.get_balance();
-    assert(balance_before == 0, 'Invalid balance');
-
-    dispatcher.increase_balance(42);
-
-    let balance_after = dispatcher.get_balance();
-    assert(balance_after == 42, 'Invalid balance');
+    assert(token.name == "Bankat Token", 'wrong token name');
+    assert(token.symbol == "BKT", 'wrong token symbol');
 }
 
-#[test]
-#[feature("safe_dispatcher")]
-fn test_cannot_increase_balance_with_zero_value() {
-    let contract_address = deploy_contract("HelloStarknet");
-
-    let safe_dispatcher = IHelloStarknetSafeDispatcher { contract_address };
-
-    let balance_before = safe_dispatcher.get_balance().unwrap();
-    assert(balance_before == 0, 'Invalid balance');
-
-    match safe_dispatcher.increase_balance(0) {
-        Result::Ok(_) => core::panic_with_felt252('Should have panicked'),
-        Result::Err(panic_data) => {
-            assert(*panic_data.at(0) == 'Amount cannot be 0', *panic_data.at(0));
-        }
-    };
-}
